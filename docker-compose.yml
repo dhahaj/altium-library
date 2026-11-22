@@ -1,0 +1,44 @@
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: altium-mssql
+    restart: unless-stopped
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "${MSSQL_PID:-Express}"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD:?set MSSQL_SA_PASSWORD in .env}"
+      MSSQL_MEMORY_LIMIT_MB: "${MSSQL_MEMORY_LIMIT_MB:-2048}"
+    ports:
+      # Bind to a LAN or Tailscale IP. Never put this behind NPM or open it on the router.
+      - "${BIND_ADDR:-0.0.0.0}:1433:1433"
+    volumes:
+      - ./data:/var/opt/mssql
+      - ./backup:/var/opt/mssql/backup
+      - ./sql:/sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P \"$$MSSQL_SA_PASSWORD\" -Q 'SELECT 1' -b -o /dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+      start_period: 20s
+
+  # One-shot tool: copies the Celestial tables into your server.
+  # Run with:  ./setup.sh mirror
+  mirror:
+    build: ./mirror
+    profiles: ["tools"]
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      SRC_SERVER: "${CELESTIAL_SERVER}"
+      SRC_DATABASE: "${CELESTIAL_DATABASE}"
+      SRC_USER: "${CELESTIAL_USER}"
+      SRC_PASSWORD: "${CELESTIAL_PASSWORD}"
+      SRC_TRUST_CERT: "${CELESTIAL_TRUST_CERT:-no}"
+      DST_SERVER: "mssql,1433"
+      DST_DATABASE: "${DB_NAME:-altium_library}"
+      DST_USER: "sa"
+      DST_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      CUSTOM_PREFIX: "${CUSTOM_PREFIX:-Custom - }"
+      BATCH_SIZE: "${BATCH_SIZE:-2000}"
