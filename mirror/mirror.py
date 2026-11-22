@@ -236,6 +236,27 @@ def create_views(dst, views):
     return {n: errors[n] for n in pending}
 
 
+def refresh_parts_index(dst):
+    """Rebuild the Parts Manager search index (sql/02_partsui.sql). Skipped quietly when
+    that script hasn't been run; a failure here never fails the mirror."""
+    cur = dst.cursor()
+    try:
+        cur.execute("SELECT OBJECT_ID(N'dbo.refresh_parts_index', N'P')")
+        if cur.fetchone()[0] is None:
+            return
+        t = time.time()
+        cur.execute("EXEC dbo.refresh_parts_index")
+        row = cur.fetchone()
+        while cur.nextset():
+            pass
+        dst.commit()
+        print(f"Parts Manager search index refreshed: {row[0] if row else 0} parts in {time.time() - t:.1f}s.")
+    except pyodbc.Error as e:
+        dst.rollback()
+        print(f"Parts Manager search index NOT refreshed: {err_text(e)[:300]}")
+        print("  Use Re-index on the Parts Manager's Status page once the database is healthy.")
+
+
 def log(dst, table, rows, status):
     cur = dst.cursor()
     cur.execute(
@@ -347,6 +368,9 @@ def main():
                 print(f"[{i:>3}/{len(fallback)}] FAILED  {name}: {err_text(e)[:600]}")
 
     print(f"\nDone: {grand} rows in {time.time() - t0:.0f}s.")
+    # Index whatever is in the database now, including tables that copied fine
+    # even if others failed (those keep their previous copy).
+    refresh_parts_index(dst)
     if failed:
         print(f"{len(failed)} table(s) failed; their previous copy (if any) was kept:")
         for f in failed:

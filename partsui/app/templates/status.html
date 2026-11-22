@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Status · Parts Manager{% endblock %}
+{% block content %}
+<h1>Status</h1>
+<dl class="kv status">
+  <div><dt>Database</dt><dd>{% if db_ok %}<span class="ok">Connected</span>{% else %}<span class="bad">Not connected</span>{% if db_error %} ({{ db_error }}){% endif %}{% endif %}</dd></div>
+  <div><dt>Celestial parts</dt><dd>{{ '{:,}'.format(celestial_parts) if celestial_parts is not none else '–' }}</dd></div>
+  <div><dt>My parts</dt><dd>{{ '{:,}'.format(my_parts) if my_parts is not none else '–' }}{% if custom_tables is not none %} in {{ custom_tables }} table{{ '' if custom_tables == 1 else 's' }}{% endif %}</dd></div>
+  <div><dt>Last mirror run</dt><dd>{% if last_mirror %}{{ last_mirror.strftime('%Y-%m-%d %H:%M') }} UTC · {{ mirror_ok }} tables copied{% if mirror_failed %}, <span class="bad">{{ mirror_failed }} failed</span>{% endif %}{% else %}never{% endif %}</dd></div>
+  <div><dt>Library files</dt><dd>
+    {% if not scanner.enabled %}Not configured (set PARTSUI_LIBS_DIRS to get symbol/footprint autocomplete)
+    {% elif scanner.scanning and not idx.scanned_at %}Scanning…
+    {% else %}{{ '{:,}'.format(idx.files) }} files: {{ '{:,}'.format(idx.sch|length) }} symbols, {{ '{:,}'.format(idx.pcb|length) }} footprints{% if idx.failed %}, <span class="bad">{{ idx.failed|length }} unreadable</span>{% endif %}{% if scanner.scanning %} · rescanning…{% endif %}
+    {% endif %}</dd></div>
+  {% if scanner.enabled %}
+  <div><dt>Library folders</dt><dd>{% for r in idx.roots %}<code>{{ r }}</code> {% endfor %}{% for r in idx.missing_roots %}<code class="bad" title="not found">{{ r }} (missing)</code> {% endfor %}{% if not idx.roots and not idx.missing_roots %}{% for d in scanner.dirs %}<code>{{ d }}</code> {% endfor %}{% endif %}</dd></div>
+  {% endif %}
+</dl>
+
+<div class="actions">
+  <form method="post" action="/reindex">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button type="submit">Re-index search</button>
+  </form>
+  <form method="post" action="/libs/rescan">
+    <input type="hidden" name="csrf_token" value="{{ csrf }}">
+    <button type="submit" {% if not scanner.enabled %}disabled{% endif %}>Rescan libraries</button>
+  </form>
+</div>
+<p class="hint">Re-index rebuilds the search index from every part table. The mirror does this after each run, and saves keep it current, so you only need it after editing rows in DBeaver.</p>
+{% if idx.failed %}
+<details><summary>Unreadable library files ({{ idx.failed|length }})</summary>
+  <ul class="mono">{% for f in idx.failed[:200] %}<li>{{ f }}</li>{% endfor %}</ul>
+</details>
+{% endif %}
+{% endblock %}

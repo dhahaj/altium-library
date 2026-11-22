@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}DbLib · Parts Manager{% endblock %}
+{% block content %}
+<h1>Enable new tables in Altium</h1>
+<p class="lead">Altium only shows tables that are listed and enabled in your <code>.DbLib</code>. Upload your current file to see which of your tables are missing, then download a patched copy with them added.</p>
+
+<form class="upload" method="post" action="/dblib/patch" enctype="multipart/form-data"
+      hx-post="/dblib/check" hx-encoding="multipart/form-data" hx-target="#dblib-status"
+      hx-trigger="change from:#dblib-file">
+  <input type="hidden" name="csrf_token" value="{{ csrf }}">
+  <label class="file">Your .DbLib file <input id="dblib-file" type="file" name="dblib" accept=".DbLib,.dblib" required></label>
+  <div class="actions">
+    <button type="button" hx-post="/dblib/check" hx-encoding="multipart/form-data" hx-target="#dblib-status" hx-include="closest form">Check</button>
+    <button type="submit" class="primary">Download patched copy</button>
+  </div>
+  <p class="hint">The file is read in memory and never stored or logged. It holds your reader password.</p>
+</form>
+
+<div id="dblib-status">
+  {% include "_dblib_status.html" %}
+</div>
+
+<section class="howto">
+  <h2>After downloading</h2>
+  <ol>
+    <li>Keep a backup of your current <code>Daniel.DbLib</code>.</li>
+    <li>Close Altium, or uninstall the library first (Components panel ▸ ≡ ▸ File-based Libraries Preferences).</li>
+    <li>Save the downloaded file over <code>Daniel.DbLib</code>.</li>
+    <li>Open Altium again (reinstall the library if you removed it) and refresh the Components panel.</li>
+  </ol>
+  <p class="hint">Only new <code>[TableN]</code> and <code>[FieldMapN]</code> sections are appended at the end; everything already in the file stays byte-for-byte the same. Field mappings follow Celestial's own tables: Part Number is the lookup key, Comment and Value are visible on placement, and the rest become parameters with the column's name.</p>
+</section>
+{% endblock %}

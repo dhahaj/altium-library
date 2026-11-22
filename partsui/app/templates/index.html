@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}{% if q %}{{ q }} · {% endif %}Parts Manager{% endblock %}
+{% block content %}
+<form class="search" action="/search" method="get"
+      hx-get="/search" hx-target="#results" hx-push-url="true"
+      hx-trigger="input changed delay:300ms from:#q, change from:#table, change from:#mine, submit"
+      hx-indicator="#results">
+  <input id="q" name="q" type="search" value="{{ q }}" placeholder="Part number, value, description…"
+         autocomplete="off" autofocus aria-label="Search parts">
+  <select id="table" name="table" aria-label="Category">
+    <option value="">All categories</option>
+    {% if custom %}
+    <optgroup label="Mine">
+      {% for t in custom %}<option value="{{ t.name }}" {% if t.name == table %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+    </optgroup>
+    {% endif %}
+    <optgroup label="Celestial">
+      {% for t in celestial %}<option value="{{ t.name }}" {% if t.name == table %}selected{% endif %}>{{ t.name }}</option>{% endfor %}
+    </optgroup>
+  </select>
+  <label class="toggle"><input id="mine" name="mine" type="checkbox" value="1" {% if mine %}checked{% endif %}> Mine only</label>
+  <noscript><button type="submit">Search</button></noscript>
+</form>
+<div id="results" aria-live="polite">
+  {% include "_results.html" %}
+</div>
+{% endblock %}

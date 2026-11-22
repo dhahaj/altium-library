@@ -42,3 +42,28 @@ services:
       DST_PASSWORD: "${MSSQL_SA_PASSWORD}"
       CUSTOM_PREFIX: "${CUSTOM_PREFIX:-Custom - }"
       BATCH_SIZE: "${BATCH_SIZE:-2000}"
+
+  # Parts Manager web UI. Start with:  ./setup.sh ui
+  partsui:
+    build: ./partsui
+    container_name: altium-partsui
+    restart: unless-stopped
+    depends_on:
+      mssql:
+        condition: service_healthy
+    environment:
+      DB_SERVER: "mssql,1433"
+      DB_NAME: "${DB_NAME:-altium_library}"
+      LIBRARIAN_USER: "${LIBRARIAN_USER:-librarian}"
+      LIBRARIAN_PASSWORD: "${LIBRARIAN_PASSWORD:-}"
+      CUSTOM_PREFIX: "${CUSTOM_PREFIX:-Custom - }"
+      # The app refuses to start while this is empty.
+      PARTSUI_PASSWORD: "${PARTSUI_PASSWORD:-}"
+      PARTSUI_LIBS_DIRS: "${PARTSUI_LIBS_DIRS:-/libs/celestial:/libs/daniel}"
+    ports:
+      # LAN only, like 1433. Don't publish this through NPM or the router.
+      - "${PARTSUI_BIND_ADDR:-${BIND_ADDR:-0.0.0.0}}:${PARTSUI_PORT:-8080}:8080"
+    volumes:
+      # Optional, read-only: clone the Celestial repo to ./libs/celestial and your own
+      # libs repo to ./libs/daniel for symbol/footprint autocomplete.
+      - ./libs:/libs:ro

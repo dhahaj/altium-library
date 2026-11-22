@@ -5,7 +5,8 @@
 #   ./setup.sh mirror    copy Celestial tables in (extra args go to mirror.py: --list, --only X)
 #   ./setup.sh backup    full backup to ./backup/
 #   ./setup.sh sql       interactive sqlcmd as sa
-#   ./setup.sh all       up + init + mirror
+#   ./setup.sh ui        build + start the Parts Manager web UI (needs PARTSUI_PASSWORD)
+#   ./setup.sh all       up + init + mirror + ui
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -33,11 +34,14 @@ cmd_up() {
 }
 
 cmd_init() {
-  "${SQLCMD[@]}" -i /sql/01_init.sql \
-    -v DB_NAME="$DB_NAME" \
-       READER_USER="$READER_USER" READER_PASSWORD="$READER_PASSWORD" \
-       LIBRARIAN_USER="$LIBRARIAN_USER" LIBRARIAN_PASSWORD="$LIBRARIAN_PASSWORD" \
-       CUSTOM_PREFIX="$CUSTOM_PREFIX"
+  local f
+  for f in 01_init.sql 02_partsui.sql; do
+    "${SQLCMD[@]}" -i "/sql/$f" \
+      -v DB_NAME="$DB_NAME" \
+         READER_USER="$READER_USER" READER_PASSWORD="$READER_PASSWORD" \
+         LIBRARIAN_USER="$LIBRARIAN_USER" LIBRARIAN_PASSWORD="$LIBRARIAN_PASSWORD" \
+         CUSTOM_PREFIX="$CUSTOM_PREFIX"
+  done
 }
 
 cmd_mirror() {
@@ -53,6 +57,28 @@ cmd_backup() {
   ls -1t backup/*.bak 2>/dev/null | tail -n +11 | xargs -r rm -f   # keep newest 10
 }
 
+cmd_ui() {
+  if [[ -z "${PARTSUI_PASSWORD:-}" ]]; then
+    echo "Set PARTSUI_PASSWORD in .env first (the web UI's login password), then run: ./setup.sh ui"
+    [[ "${1:-}" == "optional" ]] && return 0 || exit 1
+  fi
+  mkdir -p libs
+  docker compose build partsui
+  docker compose up -d partsui
+  echo -n "Waiting for the Parts Manager"
+  for _ in $(seq 1 40); do
+    status="$(docker inspect -f '{{.State.Health.Status}}' altium-partsui 2>/dev/null || true)"
+    if [[ "$status" == "healthy" ]]; then
+      local addr="${PARTSUI_BIND_ADDR:-${BIND_ADDR:-0.0.0.0}}"
+      [[ "$addr" == "0.0.0.0" ]] && addr="$(hostname -I 2>/dev/null | awk '{print $1}')"
+      echo " ready: http://${addr:-localhost}:${PARTSUI_PORT:-8080}/  (user: admin)"
+      return
+    fi
+    echo -n "."; sleep 3
+  done
+  echo; echo "The Parts Manager did not become healthy. Check: docker compose logs partsui"; exit 1
+}
+
 cmd_sql() {
   docker compose exec mssql /opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P "$MSSQL_SA_PASSWORD" -d "$DB_NAME"
 }
@@ -63,6 +89,7 @@ case "${1:-}" in
   mirror) shift; cmd_mirror "$@" ;;
   backup) cmd_backup ;;
   sql)    cmd_sql ;;
-  all)    cmd_up; cmd_init; cmd_mirror ;;
-  *) sed -n '2,9p' "$0"; exit 1 ;;
+  ui)     cmd_ui ;;
+  all)    cmd_up; cmd_init; cmd_mirror; cmd_ui optional ;;
+  *) sed -n '2,10p' "$0"; exit 1 ;;
 esac

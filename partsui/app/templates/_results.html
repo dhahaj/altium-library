@@ -1,0 +1,35 @@
+{% if result is none %}
+  <p class="hint">{% if q.strip() %}Keep typing: at least 2 characters.{% else %}Type at least 2 characters, or pick a category or “Mine only” to browse.{% endif %}</p>
+{% elif not result.rows %}
+  <p class="hint">No parts match{% if q.strip() and not short %} “{{ q }}”{% endif %}{% if mine %} in your tables{% endif %}.
+    {% if q.strip() %}<a href="{{ urlq('/parts/new') }}">Add a new part</a>?{% endif %}</p>
+{% else %}
+  <table class="results">
+    <thead><tr><th>Part number</th><th>Comment</th><th>Description</th><th>Category</th><th>Footprint</th></tr></thead>
+    <tbody>
+    {% for r in result.rows %}
+      {% set href = urlq('/part', table=r.table_name, pn=r.part_number) %}
+      <tr data-href="{{ href }}">
+        <td class="pn"><a href="{{ href }}">{{ r.part_number }}</a>{% if r.is_custom %} <span class="badge">Mine</span>{% endif %}</td>
+        <td>{{ r.comment or '' }}</td>
+        <td class="descr">{{ r.description or '' }}</td>
+        <td class="cat">{{ r.table_name[prefix|length:] if r.is_custom else r.table_name }}</td>
+        <td class="fp">{{ r.footprint_ref or '' }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <nav class="pager">
+    {% if result.page > 1 %}
+      <a href="{{ urlq('/search', q=q, table=table, mine='1' if mine else '', page=result.page - 1) }}"
+         hx-get="{{ urlq('/search', q=q, table=table, mine='1' if mine else '', page=result.page - 1) }}"
+         hx-target="#results" hx-push-url="true">← Previous</a>
+    {% endif %}
+    <span>Page {{ result.page }}{% if not result.has_next and result.page == 1 %} · {{ result.rows|length }} part{{ '' if result.rows|length == 1 else 's' }}{% endif %}</span>
+    {% if result.has_next %}
+      <a href="{{ urlq('/search', q=q, table=table, mine='1' if mine else '', page=result.page + 1) }}"
+         hx-get="{{ urlq('/search', q=q, table=table, mine='1' if mine else '', page=result.page + 1) }}"
+         hx-target="#results" hx-push-url="true">Next →</a>
+    {% endif %}
+  </nav>
+{% endif %}

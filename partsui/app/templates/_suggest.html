@@ -1,0 +1,11 @@
+{% if items %}
+<ul class="suggest-list" role="listbox">
+  {% for e in items %}
+  <li><button type="button" role="option" data-ref="{{ e.name }}" data-path="{{ e.path }}" data-for="{{ field }}">
+    <span class="name">{{ e.name }}</span>
+    <span class="path">{{ e.path }}</span>
+    {% if e.description %}<span class="d">{{ e.description }}</span>{% endif %}
+  </button></li>
+  {% endfor %}
+</ul>
+{% endif %}
