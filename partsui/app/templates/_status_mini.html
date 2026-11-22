@@ -1,0 +1,5 @@
+{% set bits = [] %}
+{% if db_ok %}{% set _ = bits.append('{:,} Celestial'.format(celestial_parts)) %}{% set _ = bits.append('{:,} mine'.format(my_parts)) %}{% else %}{% set _ = bits.append('Database not connected') %}{% endif %}
+{% if last_mirror %}{% set _ = bits.append('mirrored ' ~ last_mirror.strftime('%Y-%m-%d')) %}{% endif %}
+{% if scanner.enabled %}{% set _ = bits.append('scanning libraries…' if (scanner.scanning and not idx.scanned_at) else '{:,} symbols/footprints'.format(idx.count)) %}{% endif %}
+<span class="{{ 'ok' if db_ok else 'bad' }}">●</span> {{ bits|join(' · ') }} · <a href="/status">Status</a>

@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}{{ pn }} · Parts Manager{% endblock %}
+{% block content %}
+<div class="part-head">
+  <div>
+    <p class="crumb">{% if table.is_custom %}<span class="badge">Mine</span> {% endif %}{{ table.name }}</p>
+    <h1 class="pn">{{ pn }}</h1>
+  </div>
+  <div class="actions">
+    <a class="button primary" href="{{ urlq('/parts/clone', table=table.name, pn=pn) }}">Clone to my library</a>
+    {% if table.is_custom %}
+      <a class="button" href="{{ urlq('/parts/edit', table=table.name, pn=pn) }}">Edit</a>
+      <details class="confirm">
+        <summary class="button danger">Delete</summary>
+        <form method="post" action="/parts/delete">
+          <input type="hidden" name="csrf_token" value="{{ csrf }}">
+          <input type="hidden" name="table" value="{{ table.name }}">
+          <input type="hidden" name="pn" value="{{ pn }}">
+          <p>Delete <strong>{{ pn }}</strong> from {{ table.name }}? This can't be undone.</p>
+          <button type="submit" class="danger">Yes, delete it</button>
+        </form>
+      </details>
+    {% endif %}
+  </div>
+</div>
+
+<input type="checkbox" id="show-empty" class="show-empty-toggle">
+<label for="show-empty" class="toggle-label">Show empty fields ({{ fields|selectattr(1, 'equalto', '')|list|length }})</label>
+<dl class="kv">
+  {% for name, value in fields %}
+    <div class="{{ 'empty' if value == '' else '' }}">
+      <dt>{{ name }}</dt>
+      <dd>{% if value and link_column.match(name) and (value.startswith('http://') or value.startswith('https://')) %}<a href="{{ value }}" target="_blank" rel="noopener noreferrer">{{ value }}</a>{% else %}{{ value }}{% endif %}</dd>
+    </div>
+  {% endfor %}
+</dl>
+{% endblock %}

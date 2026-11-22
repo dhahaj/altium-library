@@ -1,0 +1,30 @@
+{% if dblib_error %}
+  <p class="error-box">{{ dblib_error }}</p>
+{% elif rows is not none %}
+  {% set missing = rows|selectattr('state', 'equalto', 'missing')|list %}
+  {% set disabled = rows|selectattr('state', 'equalto', 'disabled')|list %}
+  <table class="results compact">
+    <thead><tr><th>Your table</th><th>In this DbLib</th></tr></thead>
+    <tbody>
+    {% for r in rows %}
+      <tr><td>{{ r.name }}</td>
+          <td>{% if r.state == 'enabled' %}<span class="ok">Enabled</span> (Table{{ r.number }})
+              {% elif r.state == 'disabled' %}<span class="warn">Present but disabled</span> (Table{{ r.number }}). Tick Enable in Altium.
+              {% else %}<span class="bad">Missing</span>; will be added{% endif %}</td></tr>
+    {% else %}
+      <tr><td colspan="2">You have no custom tables yet.</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  <p>{% if missing %}<strong>{{ missing|length }}</strong> table{{ '' if missing|length == 1 else 's' }} will be added. Click <em>Download patched copy</em>.
+     {% else %}Nothing to add: every table of yours is already in this file.{% endif %}
+     <span class="hint">({{ total_tables }} tables in the file.)</span></p>
+{% else %}
+  <table class="results compact">
+    <thead><tr><th>Your table</th><th>In your DbLib</th></tr></thead>
+    <tbody>
+    {% for t in tables %}<tr><td>{{ t.name }}</td><td class="hint">Upload your file to check</td></tr>
+    {% else %}<tr><td colspan="2">You have no custom tables yet. They appear here after your first clone or new part.</td></tr>{% endfor %}
+    </tbody>
+  </table>
+{% endif %}

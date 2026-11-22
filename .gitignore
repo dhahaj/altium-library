@@ -1,3 +1,6 @@
 data/
 
 .env
+libs/
+__pycache__/
+.pytest_cache/
