@@ -37,6 +37,7 @@ Individual steps:
 | `./setup.sh mirror --list` | Test the Celestial connection: list tables and row counts, copy nothing |
 | `./setup.sh mirror` | Copy all Celestial tables in. Re-run whenever you want upstream updates |
 | `./setup.sh mirror --only "Capacitors"` | Re-copy only matching tables (e.g. after a failure) |
+| `./setup.sh drop-raw` | One-off: drop the raw `z_` tables a mirror from before this change copied in (section 1, *Raw `z_` tables*). Asks first |
 | `./setup.sh backup` | Full backup to `./backup/`, keeps the newest 10 |
 | `./setup.sh sql` | sqlcmd prompt as `sa` |
 | `./setup.sh ui` | Build and start the Parts Manager web UI (section 4). Needs `PARTSUI_PASSWORD` |
@@ -48,7 +49,12 @@ Individual steps:
 Log in at portal.altiumlibrary.com and grab the server, database, user and password from the connection string or UDL it gives you. Put them in `.env`.
 Its Azure firewall rule must allow the **public IP of the box running the mirror**. If you're at home, that's the same IP as your desktop. A firewall rejection prints a specific message, so you'll know.
 
-The mirror loads each table into a `staging` schema, then swaps it into `dbo` in one transaction. A dropped connection therefore never leaves a table half-empty. Any table starting with `Custom - ` is skipped, in both the source and your copy.
+The mirror loads each table into a `staging` schema, then swaps it into `dbo` in one transaction. A dropped connection therefore never leaves a table half-empty. Any table starting with `Custom - ` is skipped, in both the source and your copy, and so are Celestial's raw `z_` tables (below).
+
+### Raw `z_` tables
+Celestial's database has a raw `z_` table behind each group of categories. For example, `z_CapacitorsCeramic` is the source for all nine `Capacitors - Ceramic - <size>` views. The `.DbLib` lists them as disabled, the Parts Manager ignores them, and your copy's category tables already hold the same rows. Copying them roughly doubles the database (about 257k extra rows and 400 MB), so the mirror skips them.
+
+A server mirrored before that change still has them. Drop them once with `./setup.sh drop-raw`. It refuses to drop anything while a view, procedure, trigger or foreign key outside the `z_` tables still uses one of them. If you ever want them back, run `./setup.sh mirror --include-raw --only z_`.
 
 ### Network
 - Set `BIND_ADDR` to the host's LAN or Tailscale IP, and/or restrict 1433 to your LAN subnet in the Proxmox firewall.
@@ -205,9 +211,10 @@ Needs Microsoft ODBC Driver 18 on the machine and Docker: the integration tests 
 ```
 docker-compose.yml   SQL Server 2022 (Express) + one-shot mirror tool
 .env.example         all settings; copy to .env
-setup.sh             up / init / mirror / backup / sql / ui / all
+setup.sh             up / init / mirror / drop-raw / backup / sql / ui / all
 sql/01_init.sql      DB, logins, permissions, Custom template, make_custom_table proc
 sql/02_partsui.sql   Parts Manager search index (_parts_index) + refresh/upsert procs
+sql/03_drop_raw_tables.sql  one-off cleanup of the raw z_ tables (./setup.sh drop-raw)
 mirror/mirror.py     Celestial -> local copy (staging + atomic swap), then refreshes the index
 mirror/Dockerfile    python 3.12 + msodbcsql18 + pyodbc
 partsui/             Parts Manager: FastAPI + Jinja2 + vendored htmx, Dockerfile, tests

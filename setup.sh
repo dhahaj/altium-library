@@ -3,6 +3,7 @@
 #   ./setup.sh up        start SQL Server, wait until healthy
 #   ./setup.sh init      create database, logins, template table, helper proc (re-runnable)
 #   ./setup.sh mirror    copy Celestial tables in (extra args go to mirror.py: --list, --only X)
+#   ./setup.sh drop-raw  drop the raw z_ tables an older mirror copied (asks first; --yes skips that)
 #   ./setup.sh backup    full backup to ./backup/
 #   ./setup.sh sql       interactive sqlcmd as sa
 #   ./setup.sh ui        build + start the Parts Manager web UI (needs PARTSUI_PASSWORD)
@@ -49,6 +50,25 @@ cmd_mirror() {
   docker compose --profile tools run --rm mirror "$@"
 }
 
+cmd_drop_raw() {
+  local n answer
+  n="$("${SQLCMD[@]}" -d "$DB_NAME" -h -1 -W -Q \
+    "SET NOCOUNT ON; SELECT COUNT(*) FROM sys.tables WHERE schema_id = SCHEMA_ID(N'dbo') AND name LIKE N'z[_]%';" \
+    </dev/null | tr -d '[:space:]')"   # </dev/null: keep docker from eating the answer below
+  if [[ "$n" == "0" ]]; then
+    echo "No z_ tables in $DB_NAME. Nothing to do."
+    return
+  fi
+  echo "This drops $n raw Celestial z_ tables from $DB_NAME."
+  echo "Altium has them disabled, the Parts Manager ignores them, and the mirror no longer copies them."
+  echo "To get them back later: ./setup.sh mirror --include-raw --only z_"
+  if [[ "${1:-}" != "--yes" ]]; then
+    read -r -p "Type 'drop' to continue: " answer || answer=""
+    [[ "$answer" == "drop" ]] || { echo "Cancelled. Nothing dropped."; exit 1; }
+  fi
+  "${SQLCMD[@]}" -W -i /sql/03_drop_raw_tables.sql -v DB_NAME="$DB_NAME"
+}
+
 cmd_backup() {
   local f="${DB_NAME}_$(date +%Y%m%d_%H%M%S).bak"
   "${SQLCMD[@]}" -Q "BACKUP DATABASE [$DB_NAME] TO DISK = N'/var/opt/mssql/backup/$f' WITH COMPRESSION, INIT, CHECKSUM;" \
@@ -87,9 +107,10 @@ case "${1:-}" in
   up)     cmd_up ;;
   init)   cmd_init ;;
   mirror) shift; cmd_mirror "$@" ;;
+  drop-raw) shift; cmd_drop_raw "$@" ;;
   backup) cmd_backup ;;
   sql)    cmd_sql ;;
   ui)     cmd_ui ;;
   all)    cmd_up; cmd_init; cmd_mirror; cmd_ui optional ;;
-  *) sed -n '2,10p' "$0"; exit 1 ;;
+  *) sed -n '2,11p' "$0"; exit 1 ;;
 esac
