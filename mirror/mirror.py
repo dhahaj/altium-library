@@ -3,6 +3,10 @@
 Copy every table from the Celestial Azure SQL database into your own SQL Server.
 
 - Tables whose names start with CUSTOM_PREFIX are never touched (yours).
+- Celestial's raw z_ tables are skipped. They're the source the category views are built
+  from upstream, they're disabled in the DbLib, and the category tables already hold the
+  same rows, so copying them would only double the size of the database. A view that
+  reads a z_ table can't be recreated without it, so it's copied as a table instead.
 - Each table loads into the [staging] schema first, then is swapped into [dbo]
   inside a transaction, so a dropped connection never leaves a half-empty table.
 - Re-run any time to pull upstream changes.
@@ -11,6 +15,7 @@ Usage (via ./setup.sh mirror):
   mirror.py                       copy everything
   mirror.py --list                show source tables + row counts, copy nothing
   mirror.py --only "Capacitors"   only tables whose name contains the text (repeatable)
+  mirror.py --include-raw         also copy the raw z_ tables
 """
 import argparse
 import os
@@ -87,6 +92,21 @@ def select_expr(c) -> str:
     if t in ("timestamp", "rowversion"):
         return f"CAST({col} AS varbinary(8)) AS {col}"
     return col
+
+
+def is_raw(name: str) -> bool:
+    """Celestial's raw upstream tables (z_CapacitorsCeramic, ...). SQL Server's default
+    collation is case-insensitive, so Z_ counts too."""
+    return name.lower().startswith("z_")
+
+
+def wanted(name: str, prefix: str, only: list[str], include_raw: bool = False) -> bool:
+    """Should the mirror copy this source table or view?"""
+    return (not name.startswith(prefix)
+            and not name.startswith("_")
+            and name != "sysdiagrams"
+            and (include_raw or not is_raw(name))
+            and (not only or any(s.lower() in name.lower() for s in only)))
 
 
 def source_tables(src):
@@ -272,6 +292,8 @@ def main():
     ap.add_argument("--only", action="append", default=[], help="substring filter on table name")
     ap.add_argument("--views-as-tables", action="store_true",
                     help="copy views as plain tables instead of recreating them")
+    ap.add_argument("--include-raw", action="store_true",
+                    help="also copy Celestial's raw z_ tables (skipped by default)")
     args = ap.parse_args()
 
     prefix = env("CUSTOM_PREFIX", "Custom - ")
@@ -286,15 +308,17 @@ def main():
             sys.exit("Azure firewall blocked this IP. Add this host's public IP in the Celestial portal.\n" + msg)
         sys.exit(f"Source connection failed: {msg}")
 
-    def wanted(name):
-        return (not name.startswith(prefix)
-                and not name.startswith("_")
-                and name != "sysdiagrams"
-                and (not args.only or any(s.lower() in name.lower() for s in args.only)))
+    def pick(name):
+        return wanted(name, prefix, args.only, args.include_raw)
 
-    tables = [t for t in source_tables(src) if wanted(t[1])]
-    views = [v for v in source_views(src) if wanted(v[1])]
+    all_tables = source_tables(src)
+    tables = [t for t in all_tables if pick(t[1])]
+    views = [v for v in source_views(src) if pick(v[1])]
     print(f"{len(tables)} tables and {len(views)} views selected.")
+    if not args.include_raw and not args.only:
+        raw = sum(1 for t in all_tables if is_raw(t[1]))
+        if raw:
+            print(f"Skipping {raw} raw z_ tables (nothing uses them; --include-raw copies them).")
 
     if args.list:
         cur = src.cursor()
