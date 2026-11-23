@@ -2,7 +2,7 @@
 
 `libs/celestial/` holds four real library files from the Celestial Altium Library
 (https://github.com/issus/altium-library), copied unchanged at their upstream paths so the
-scanner tests run against genuine Altium OLE files:
+scanner tests run against genuine Altium OLE files (taken from upstream commit 8b4124061):
 
 - `symbols/Passives/SCH - PASSIVES - CAPACITOR.SCHLIB`
 - `symbols/ADC/SCH - ADC - TI ADS1115.SchLib`

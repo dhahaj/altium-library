@@ -1,6 +1,6 @@
 data/
 
 .env
-libs/
+/libs/
 __pycache__/
 .pytest_cache/
